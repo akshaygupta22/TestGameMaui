@@ -1,5 +1,8 @@
 ﻿using TestGameMaui.Core;
 using System.ComponentModel;
+using Microsoft.Maui.Devices;
+using Microsoft.Maui.Storage;
+using System.Reflection;
 
 namespace TestGameMaui
 {
@@ -13,37 +16,76 @@ namespace TestGameMaui
             BindingContext = viewModel;
             viewModel.StarAnimationRequested += ViewModel_StarAnimationRequested;
             viewModel.GameOverRequested += ViewModel_GameOverRequested;
+            viewModel.SoundRequested += ViewModel_SoundRequested;
+
+            this.SizeChanged += MainPage_SizeChanged;
+        }
+
+        private void MainPage_SizeChanged(object sender, EventArgs e)
+        {
+            // Make the game area cover ~80% of the smaller dimension
+            double width = this.Width;
+            double height = this.Height;
+            if (width <= 0 || height <= 0)
+                return;
+
+            double smaller = Math.Min(width, height);
+            double gameAreaSize = smaller * 0.65; // 65% of smaller dimension
+
+            // Set GameAreaGrid size
+            GameAreaGrid.WidthRequest = gameAreaSize;
+            GameAreaGrid.HeightRequest = gameAreaSize;
+
+            // Determine cell size based on a 3x3 grid with padding (3 columns)
+            int columns = 3; // current game logic uses 3
+            double paddingPerCell = 4 * 2; // margins around frames
+            double available = gameAreaSize - (columns * paddingPerCell);
+            double cellSize = Math.Floor(available / columns);
+
+            // Update dynamic resources
+            this.Resources["CellSize"] = cellSize;
+            this.Resources["CellFontSize"] = Math.Max(18, cellSize * 0.5);
+            this.Resources["ScoreFontSize"] = Math.Max(20, smaller * 0.06);
+            this.Resources["TargetFontSize"] = Math.Max(28, smaller * 0.09);
+            this.Resources["HeartSize"] = Math.Max(20, smaller * 0.06);
+        }
+
+        private async void ViewModel_SoundRequested(object? sender, SoundType e)
+        {
+            if (!viewModel.IsSoundEnabled)
+                return;
+
+            if (!MainThread.IsMainThread)
+            {
+                await MainThread.InvokeOnMainThreadAsync(() => HandleSound(e));
+                return;
+            }
+
+            HandleSound(e);
+        }
+
+        private void HandleSound(SoundType type)
+        {
+            try
+            {
+                // Simple vibration feedback as haptics fallback
+                try
+                {
+                    Vibration.Default.Vibrate(TimeSpan.FromMilliseconds(50));
+                }
+                catch { }
+
+                // Additional sound playback can be implemented later
+            }
+            catch { }
         }
 
         private async void ViewModel_GameOverRequested(object? sender, EventArgs e)
         {
-            // Ensure running on UI thread
+            // in-page overlay handles the UI, nothing to do here, but ensure we run on UI thread
             if (!MainThread.IsMainThread)
             {
-                await MainThread.InvokeOnMainThreadAsync(async () => await ShowGameOverPopup());
-                return;
-            }
-
-            await ShowGameOverPopup();
-        }
-
-        private async Task ShowGameOverPopup()
-        {
-            // Show popup with Restart and Exit options
-            string title = "Game Over";
-            string message = $"Your score: {viewModel.Score}.\nDo you want to restart or exit?";
-            bool restart = await DisplayAlert(title, message, "Restart", "Exit");
-            if (restart)
-            {
-                // Restart the game via command
-                if (viewModel.NewGameCommand != null && viewModel.NewGameCommand.CanExecute(null))
-                    viewModel.NewGameCommand.Execute(null);
-            }
-            else
-            {
-                // Exit the app via command
-                if (viewModel.ExitCommand != null && viewModel.ExitCommand.CanExecute(null))
-                    viewModel.ExitCommand.Execute(null);
+                await MainThread.InvokeOnMainThreadAsync(() => { });
             }
         }
 
@@ -62,9 +104,9 @@ namespace TestGameMaui
         // Only keep animation logic here
         private async Task ShowStarAnimation()
         {
-            double areaWidth = 400;
-            double areaHeight = 400;
-            double starSize = 32;
+            double areaWidth = GameAreaGrid.WidthRequest > 0 ? GameAreaGrid.WidthRequest : 400;
+            double areaHeight = GameAreaGrid.HeightRequest > 0 ? GameAreaGrid.HeightRequest : 400;
+            double starSize = Math.Max(24, Math.Min(areaWidth, areaHeight) * 0.08);
             double halfStar = starSize / 2;
             var stars = new List<Image>();
 

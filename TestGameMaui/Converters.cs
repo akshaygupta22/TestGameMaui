@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Graphics;
 
 namespace TestGameMaui
 {
@@ -19,7 +20,6 @@ namespace TestGameMaui
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            // support both bool and SelectionState
             if (value is SelectionState state)
             {
                 return state switch
@@ -37,6 +37,20 @@ namespace TestGameMaui
             }
 
             return Color.FromArgb("#BBDEFB");
+        }
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotImplementedException();
+    }
+
+    public class BoolToColorConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool enabled)
+            {
+                // Use blue when sound is on, gray when muted
+                return enabled ? Color.FromArgb("#1976D2") : Color.FromArgb("#9E9E9E");
+            }
+            return Color.FromArgb("#9E9E9E");
         }
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotImplementedException();
     }

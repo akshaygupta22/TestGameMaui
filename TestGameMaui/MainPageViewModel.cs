@@ -7,6 +7,7 @@ using Microsoft.Maui.Controls;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Maui.Storage;
 
 namespace TestGameMaui
 {
@@ -20,14 +21,21 @@ namespace TestGameMaui
         private int targetNumber;
         private bool isGameOver;
         private bool isEvaluating;
+        private bool isSoundEnabled = true;
+        private bool showTutorial;
         public ICommand CellSelectedCommand { get; }
         public ICommand NewGameCommand { get; }
         public ICommand ExitCommand { get; }
+        public ICommand TutorialStartCommand { get; }
+        public ICommand TutorialSkipCommand { get; }
+        public ICommand ToggleSoundCommand { get; }
 
         // Event to notify the View to run an animation (raised when a correct match is made)
         public event EventHandler? StarAnimationRequested;
         // Event to notify the View that the game is over
         public event EventHandler? GameOverRequested;
+        // Event to request sound/haptic feedback
+        public event EventHandler<SoundType>? SoundRequested;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -51,6 +59,13 @@ namespace TestGameMaui
             CellSelectedCommand = new Command<CellViewModel>(async c => await CellSelected(c));
             NewGameCommand = new Command(NewGame);
             ExitCommand = new Command(Exit);
+            TutorialStartCommand = new Command(TutorialStart);
+            TutorialSkipCommand = new Command(TutorialSkip);
+            ToggleSoundCommand = new Command(ToggleSound);
+
+            // Load preferences
+            ShowTutorial = !Preferences.Get("HasSeenTutorial", false);
+            IsSoundEnabled = Preferences.Get("SoundEnabled", true);
         }
 
         public ObservableCollection<ObservableCollection<CellViewModel>> Matrix
@@ -64,6 +79,42 @@ namespace TestGameMaui
         public ObservableCollection<(int, int)> SelectedCells { get => selectedCells; set { selectedCells = value; OnPropertyChanged(); } }
         public bool IsGameOver { get => isGameOver; set { isGameOver = value; OnPropertyChanged(); } }
         public bool IsEvaluating { get => isEvaluating; set { isEvaluating = value; OnPropertyChanged(); UpdateCellEnabledState(); } }
+        
+        public bool IsSoundEnabled 
+        { 
+            get => isSoundEnabled; 
+            set 
+            { 
+                if (isSoundEnabled != value)
+                {
+                    isSoundEnabled = value; 
+                    Preferences.Set("SoundEnabled", value);
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SoundIconText));
+                }
+            } 
+        }
+
+        public string SoundIconText => IsSoundEnabled ? "?? Sound On" : "?? Mute";
+
+        public bool ShowTutorial { get => showTutorial; set { showTutorial = value; OnPropertyChanged(); } }
+
+        private void ToggleSound()
+        {
+            IsSoundEnabled = !IsSoundEnabled;
+        }
+
+        private void TutorialStart()
+        {
+            Preferences.Set("HasSeenTutorial", true);
+            ShowTutorial = false;
+        }
+
+        private void TutorialSkip()
+        {
+            Preferences.Set("HasSeenTutorial", true);
+            ShowTutorial = false;
+        }
 
         private async Task CellSelected(CellViewModel cell)
         {
@@ -100,6 +151,9 @@ namespace TestGameMaui
                 Health = gameLogic.Health;
                 if (correct)
                 {
+                    // request positive feedback
+                    SoundRequested?.Invoke(this, SoundType.Correct);
+
                     // mark correct state so UI can show green
                     foreach (var (row, col) in selectedList)
                     {
@@ -127,6 +181,9 @@ namespace TestGameMaui
                 }
                 else
                 {
+                    // request gentle negative feedback
+                    SoundRequested?.Invoke(this, SoundType.Wrong);
+
                     // mark wrong state so UI can show red
                     foreach (var (row, col) in selectedList)
                     {
@@ -231,6 +288,8 @@ namespace TestGameMaui
     }
 
     public enum SelectionState { None, Selected, Correct, Wrong }
+
+    public enum SoundType { Correct, Wrong }
 
     public class CellViewModel : INotifyPropertyChanged
     {

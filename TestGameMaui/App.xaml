@@ -7,6 +7,7 @@
         <ResourceDictionary>
             <local:HealthToOpacityConverter x:Key="HealthToOpacityConverter" />
             <local:SelectedToColorConverter x:Key="SelectedToColorConverter" />
+            <local:BoolToColorConverter x:Key="BoolToColorConverter" />
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
                 <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
